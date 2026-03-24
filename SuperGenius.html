@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ACME Love Connection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Lexend', sans-serif;
+            background-color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom, #ff9d6c, #ff5e3a);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            overflow: hidden;
+        }
+
+        .mesa {
+            position: absolute;
+            bottom: 20%;
+            background: #8b4513;
+            border-radius: 10px 10px 0 0;
+        }
+
+        #sprite-container {
+            position: absolute;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            height: 70vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #character-img {
+            max-height: 100%;
+            max-width: 90%;
+            object-fit: contain;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.4));
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s;
+        }
+
+        .bounce { animation: bounce 0.5s infinite alternate; }
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-20px); } }
+        
+        .shake { animation: shake 0.2s infinite; }
+        @keyframes shake { 
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            20% { transform: translate(-1px, -2px) rotate(-1deg); }
+            40% { transform: translate(-3px, 0px) rotate(1deg); }
+            60% { transform: translate(3px, 2px) rotate(0deg); }
+            80% { transform: translate(1px, -1px) rotate(1deg); }
+            100% { transform: translate(-1px, 2px) rotate(-1deg); }
+        }
+
+        #dialogue-box {
+            position: relative;
+            width: 95%;
+            margin: 0 auto 15px auto;
+            background: rgba(40, 40, 40, 0.95);
+            border: 3px solid #ffcc00;
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 130px;
+            z-index: 20;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            cursor: pointer;
+        }
+
+        #speaker-name {
+            position: absolute;
+            top: -25px;
+            left: 20px;
+            background: #ffcc00;
+            color: #000;
+            padding: 5px 20px;
+            font-weight: bold;
+            border-radius: 10px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+        }
+
+        #text-content {
+            color: white;
+            font-size: 1.1rem;
+            line-height: 1.5;
+            white-space: pre-wrap; 
+            word-wrap: break-word;
+        }
+
+        #choice-container {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 30;
+        }
+
+        .choice-btn, .refresh-btn {
+            background: rgba(255, 204, 0, 0.95);
+            color: #000;
+            padding: 18px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 5px 0 #b38f00;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .choice-btn:active, .refresh-btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        .refresh-btn {
+            background: #ffffff;
+            box-shadow: 0 5px 0 #cccccc;
+            margin-top: 10px;
+        }
+
+        .hidden { display: none !important; }
+
+        @media (max-height: 600px) {
+            #sprite-container { height: 60vh; bottom: 120px; }
+            #dialogue-box { min-height: 100px; padding: 15px; }
+            #text-content { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="mesa" style="width: 200px; height: 300px; left: -50px;"></div>
+    <div class="mesa" style="width: 150px; height: 150px; right: 20px; bottom: 15%;"></div>
+    
+    <div id="sprite-container">
+        <img id="character-img" src="https://static.wikia.nocookie.net/looneytunes/images/7/7f/Coyote.gif/revision/latest/thumbnail/width/720/height/900?cb=20060219181853" alt="Wile E. Coyote" style="opacity: 0;">
+    </div>
+
+    <div id="choice-container" class="hidden"></div>
+
+    <div id="dialogue-box" onclick="game.handleNextClick()">
+        <div id="speaker-name">???</div>
+        <div id="text-content">Tap to begin your Super Genius encounter...</div>
+        <div class="absolute bottom-2 right-4 text-yellow-400 animate-pulse text-xs" id="next-indicator">▶ NEXT</div>
+    </div>
+</div>
+
+<script>
+    const script = [
+        {
+            name: "Narrator",
+            text: "The sun beats down on the Painted Desert. You're lost, carrying nothing but a map and a strange sense of adventure.",
+            showSprite: false
+        },
+        {
+            name: "Narrator",
+            text: "Suddenly, you see him. A coyote standing near a giant wooden crate labeled 'ACME'.",
+            showSprite: true
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "Allow me to introduce myself. I am Wile E. Coyote... Super Genius.",
+            showSprite: true,
+            effect: "bounce"
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "I don't usually see travelers in these parts. Are you here to witness my latest masterpiece of engineering?",
+            showSprite: true
+        },
+        {
+            choices: [
+                { text: "I'd love to see it, Mr. Genius!", nextIdx: 5 },
+                { text: "Is that a giant magnet behind you?", nextIdx: 7 },
+                { text: "You look like you've had a rough day.", nextIdx: 10 }
+            ]
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "A person of taste! Finally! This triple-axle slingshot will finally catch that infernal bird.",
+            showSprite: true,
+            effect: "bounce"
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "Would you like to hold the release lever? It's quite a responsibility.",
+            showSprite: true,
+            nextIdx: 13
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "Magnet? Yes, a 10-ton neodymium beauty. Why do you— wait.",
+            showSprite: true,
+            effect: "shake"
+        },
+        {
+            name: "Narrator",
+            text: "A loud CLANG echoes. An anvil flies from across the canyon, sticking directly to the magnet... and Wile E.",
+            showSprite: true,
+            effect: "shake"
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "...I intended for that to happen. It's a weight-bearing test. Totally planned.",
+            showSprite: true,
+            nextIdx: 13
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "Rough? I'll have you know I've only fallen off three cliffs this morning. That's a personal record!",
+            showSprite: true
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "But your concern is... refreshing. Most people just 'Meep Meep' and run away.",
+            showSprite: true,
+            effect: "bounce"
+        },
+        {
+            name: "Wile E. Coyote",
+            text: "You know, the Road Runner can wait. Would you care for some dehydrated ACME lemonade?",
+            showSprite: true
+        },
+        {
+            name: "Narrator",
+            text: "You spent the afternoon talking about physics and gravity. It was the most 'explosive' date of your life.",
+            showSprite: true,
+            effect: "bounce"
+        },
+        {
+            name: "SYSTEM",
+            text: "ENDING ATTAINED: SUPER GENIUS ROMANCE.",
+            showSprite: false,
+            isEnd: true
+        }
+    ];
+
+    class DatingSim {
+        constructor() {
+            this.init();
+        }
+
+        init() {
+            this.currentIdx = 0;
+            this.isTyping = false;
+            this.isWaitingForChoice = false;
+            this.fullTextToType = "";
+            this.textEl = document.getElementById('text-content');
+            this.nameEl = document.getElementById('speaker-name');
+            this.spriteImg = document.getElementById('character-img');
+            this.choiceContainer = document.getElementById('choice-container');
+            this.dialogueBox = document.getElementById('dialogue-box');
+            this.nextIndicator = document.getElementById('next-indicator');
+            this.typingInterval = null;
+            
+            this.choiceContainer.classList.add('hidden');
+            this.dialogueBox.style.opacity = "1";
+        }
+
+        handleNextClick() {
+            if (this.isWaitingForChoice) return;
+            
+            if (this.isTyping) {
+                this.finishTypingNow();
+            } else {
+                this.next();
+            }
+        }
+
+        finishTypingNow() {
+            if (this.typingInterval) clearInterval(this.typingInterval);
+            this.isTyping = false;
+            this.textEl.innerText = this.fullTextToType;
+            this.checkPostTypingAction();
+        }
+
+        next() {
+            if (this.currentIdx >= script.length) return;
+
+            const current = script[this.currentIdx];
+
+            if (current.choices) {
+                this.showChoices(current.choices);
+                return;
+            }
+
+            this.renderLine(current);
+            this.currentIdx = (current.nextIdx !== undefined) ? current.nextIdx : (this.currentIdx + 1);
+        }
+
+        checkPostTypingAction() {
+            const nextItem = script[this.currentIdx];
+            const currentItem = script[this.currentIdx - 1];
+            
+            if (currentItem && currentItem.isEnd) {
+                this.showEndMenu();
+            } else if (nextItem && nextItem.choices) {
+                setTimeout(() => this.next(), 200);
+            }
+        }
+
+        renderLine(line) {
+            this.nameEl.innerText = line.name || "";
+            this.spriteImg.style.opacity = line.showSprite ? "1" : "0";
+            this.spriteImg.className = line.effect || "";
+            this.nextIndicator.classList.remove('hidden');
+
+            if (this.typingInterval) clearInterval(this.typingInterval);
+            
+            this.fullTextToType = line.text || "";
+            this.isTyping = true;
+            this.textEl.innerText = "";
+            
+            let i = 0;
+            this.typingInterval = setInterval(() => {
+                if (i < this.fullTextToType.length) {
+                    this.textEl.innerText += this.fullTextToType[i];
+                    i++;
+                } else {
+                    clearInterval(this.typingInterval);
+                    this.isTyping = false;
+                    this.checkPostTypingAction();
+                }
+            }, 30);
+        }
+
+        showChoices(choices) {
+            this.isWaitingForChoice = true;
+            this.choiceContainer.innerHTML = "";
+            this.choiceContainer.classList.remove('hidden');
+            this.dialogueBox.style.opacity = "0.3";
+            this.nextIndicator.classList.add('hidden');
+
+            choices.forEach(choice => {
+                const btn = document.createElement('div');
+                btn.className = "choice-btn";
+                btn.innerText = choice.text;
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    this.isWaitingForChoice = false;
+                    this.choiceContainer.classList.add('hidden');
+                    this.choiceContainer.innerHTML = "";
+                    this.dialogueBox.style.opacity = "1";
+                    
+                    this.currentIdx = choice.nextIdx;
+                    this.next();
+                };
+                this.choiceContainer.appendChild(btn);
+            });
+        }
+
+        showEndMenu() {
+            this.isWaitingForChoice = true;
+            this.choiceContainer.innerHTML = "";
+            this.choiceContainer.classList.remove('hidden');
+            this.dialogueBox.style.opacity = "0.5";
+            this.nextIndicator.classList.add('hidden');
+
+            const btn = document.createElement('div');
+            btn.className = "refresh-btn";
+            btn.innerText = "🔄 PLAY AGAIN";
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                this.init();
+                this.next();
+            };
+            this.choiceContainer.appendChild(btn);
+        }
+    }
+
+    const game = new DatingSim();
+    window.onload = () => game.next();
+</script>
+
+</body>
+</html>
+
